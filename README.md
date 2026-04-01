@@ -1,81 +1,113 @@
-# Citi Bike Trip Distance: January 2025 vs September 2025 (NYC)
+# Citi Bike NYC — Trip Data Analysis
 
-## Overview
-This project compares NYC Citi Bike trip distances in **January 2025** and **September 2025** to explore seasonal differences and understand whether changes are driven by:
-1) **Rider mix** (more casual vs member riders), or  
-2) **Behavioral shifts** (everyone riding farther).
+Exploratory analysis of NYC Citi Bike trips across **January 2025** and **September 2025**,
+covering ~150k trips combined. The project spans distance modeling, temporal demand patterns,
+station-level analysis, and user-type segmentation.
 
-## Data
-- Source: NYC Citi Bike trip data (monthly tripdata CSVs).
-- Months analyzed: **January 2025** and **September 2025**
-- Sampling: Random samples were used for faster iteration.
-- Key fields used:
-  - `start_lat`, `start_lng`, `end_lat`, `end_lng`
-  - `member_casual`
-  - (optional) `started_at` / `ended_at` for time-based analysis
+---
 
-## Methodology
+## Tools & Stack
 
-### 1 Cleaning
-- Converted coordinate columns to numeric.
-- Dropped rows with missing coordinates.
-- Computed trip distance and removed **0-distance** trips (likely GPS/station artifacts).
+| Tool | Purpose |
+|------|---------|
+| Python 3 | Core analysis |
+| pandas / numpy | Data loading, cleaning, feature engineering |
+| matplotlib / seaborn | Visualizations |
+| SQLite (`sqlite3`) | Relational query layer |
+| Haversine formula | Trip distance estimation from GPS coordinates |
 
-### 2 Distance Calculation (Haversine)
-Trip distance was computed from start/end coordinates using the Haversine formula.
+---
 
-### 3 Comparison Metrics
-- Summary statistics (mean, median, quartiles, max)
-- Distribution comparison (box plots with 5th–95th percentile whiskers)
-- Total miles and **miles per 10,000 rides** (normalized for sample size)
-- Breakdown by rider type (`member_casual`)
+## Project Structure
 
-### 4 Decomposition: Mix vs Behavior
-To explain why September distances are higher, the change in overall mean was decomposed into:
-- **Composition effect**: effect of a larger share of casual riders
-- **Within-group effect**: effect of longer rides among members/casual riders
+```
+citibike/
+├── citibike.py                  # Full analysis script (Parts 1–4)
+├── citibike.db                  # SQLite database (generated on run)
+├── findings_report.md           # Stakeholder-facing findings report
+├── peak_hours.png               # Trips by hour of day
+├── top_stations.png             # Top 10 busiest start stations
+├── trip_duration_dist.png       # Duration distribution by rider type
+├── distance_by_rider_type.png   # Mean distance: Jan vs Sept by rider type
+├── jan2025_tripdata_sample_75k.csv
+└── sept2025_tripdata_sample_75k.csv
+```
 
-Overall mean distance:
-\[
-\mu = p_{casual}\mu_{casual} + (1-p_{casual})\mu_{member}
-\]
-
-## Results (Key Findings)
-
-### Overall Trip Distance Increase
-- **Overall mean (Jan 2025):** 1.081 miles  
-- **Overall mean (Sept 2025):** 1.338 miles  
-- **Increase:** +0.257 miles (~24%)
-
-### Normalized Total Mileage
-- **Jan miles per 10k rides:** 10,809.91  
-- **Sept miles per 10k rides:** 13,377.36  
-- **Difference:** +2,567.45 miles per 10k rides (~23.7%)
-
-### Rider Mix Shift (Casual Share)
-- **Jan:** 9.19% casual
-- **Sept:** 18.73% casual  
-Casual share roughly **doubles** in September.
-
-### Decomposition: What Drives the Increase?
-Total mean increase: **+0.2567 miles**
-- **Composition effect (more casual riders):** +0.0127 miles (~5%)
-- **Within-group effect (rides longer):** +0.2441 miles (~95%)
-
-**Interpretation:**  
-September’s higher average distance is driven primarily by **longer rides within both rider types**, not mainly by the increased share of casual riders.
-
-### Within-Group Mean Distances
-- **Members:** 1.069 → 1.308 miles  
-- **Casual:** 1.201 → 1.468 miles  
-
-Both members and casual riders travel farther in September.
-
-## Visualizations Included
-- Box plot comparing Jan vs Sept trip distances (5th–95th percentile whiskers)
-- Bar chart: mean distance by rider type (member vs casual)
+---
 
 ## How to Run
-1. Install dependencies:
-   ```bash
-   pip install pandas numpy matplotlib
+
+```bash
+pip install pandas numpy matplotlib seaborn
+python citibike.py
+```
+
+Running the script produces all outputs: the SQLite database, four PNG charts, and
+`findings_report.md` — all populated with numbers from the actual dataset.
+
+---
+
+## Part 1 — Distance Analysis (Jan vs Sept)
+
+Computes straight-line trip distance using the **Haversine formula** from start/end GPS coordinates.
+
+**Key results:**
+- Mean trip distance: **1.08 miles** (Jan) → **1.34 miles** (Sept) — a ~24% increase
+- This increase is driven almost entirely by **within-group behavior** (everyone rides farther),
+  not by the mix shifting toward more casual riders
+  - Composition effect: +0.013 miles (~5%)
+  - Within-group effect: +0.244 miles (~95%)
+
+---
+
+## Part 2 — SQLite Database Layer
+
+The combined dataset is loaded into `citibike.db` and queried with four SQL analyses:
+
+| Query | Finding |
+|-------|---------|
+| Trips by hour | Evening commute (5 PM) is the single busiest hour with 13,591 trips |
+| Top 10 stations | W 21 St & 6 Ave leads with 607 trip starts |
+| Weekday vs weekend | Weekdays: 3.2× the volume; weekends: longer avg trips |
+| Duration by user type | Casual riders average 15.7 min; members average 10.3 min |
+
+---
+
+## Part 3 — Visualizations
+
+All charts are saved as PNG files at 150 DPI.
+
+**[peak_hours.png](peak_hours.png)** — Bar chart of trips by hour. The top 3 busiest hours
+(4 PM, 5 PM, 6 PM) are highlighted in red. The evening commute spike is clearly dominant.
+
+**[top_stations.png](top_stations.png)** — Horizontal bar of the 10 highest-volume start stations
+across both months. Stations in Chelsea/Midtown West account for most of the top 10.
+
+**[trip_duration_dist.png](trip_duration_dist.png)** — Overlapping histograms of trip duration
+(capped at 60 min) for members vs casual riders. Members cluster tightly under 15 min;
+casual riders have a much wider, longer-tailed distribution.
+
+---
+
+## Part 4 — Key Findings
+
+Full findings with context and operational recommendations are in
+[findings_report.md](findings_report.md).
+
+Summary:
+1. **5 PM is peak hour** — 13,591 trips; bimodal commute pattern visible across both months
+2. **Top stations are highly concentrated** — W 21 St & 6 Ave, W 31 St & 7 Ave, and
+   Lafayette St & E 8 St lead in departure volume
+3. **Weekdays drive volume, weekends drive duration** — 3.2× more trips on weekdays;
+   weekend trips average ~1 min longer
+4. **Casual riders are a summer conversion opportunity** — casual share doubles from ~9%
+   (Jan) to ~19% (Sept); casual riders take 1.5× longer trips than members
+
+---
+
+## Data
+
+- **Source:** [Citi Bike System Data](https://citibikenyc.com/system-data) (public)
+- **Samples:** 75,000-row random samples from January 2025 and September 2025 full monthly files
+- **Cleaning:** Missing coordinates dropped; zero-distance trips removed; trips with duration
+  outside 0–240 min excluded
